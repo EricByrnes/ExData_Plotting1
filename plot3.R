@@ -1,12 +1,17 @@
-plot3 <- function(data.filepath = "./household_power_consumption.txt",
-                  plot.filepath = NULL,
+plot3 <- function(data.filepath = "https://d396qusza40orc.cloudfront.net/exdata/data/household_power_consumption.zip",
+                  plot.filepath = "./plot3.png",
                   verbose = FALSE) {
    # Plots given data to screen or PNG file (480w x 480h), using spec given at
    # https://github.com/EricByrnes/ExData_Plotting1/blob/master/README.md
    #
    # Args:
    #   data.filepath (string) - path to file containing data in the 'Electric
-   #     power consumption' format.
+   #     power consumption' format. Several options are supported:
+   #     - if data.filepath starts with "http://", "https://" or "ftp://", the
+   #       function will attempt to download the file, otherwise it will attempt
+   #       to load the file locally
+   #     - if the file extension is ".zip", the file is unzipped to the current
+   #       directory and the first (or only) file is assumed to be the data file
    #   plot.filepath (string) - path to file to plot to; if NULL/empty, the
    #     plot is sent to the screen
    #   verbose (boolean) - if TRUE, the function emits verbose diagnostic
@@ -16,7 +21,7 @@ plot3 <- function(data.filepath = "./household_power_consumption.txt",
    #
    # Example:
    #   # plot to screen
-   #   plot3(verbose=TRUE)
+   #   plot3(verbose = TRUE)
    #   # plot to named PNG file
    #   plot3(plot.filepath = "./plot3.png")
    
@@ -30,7 +35,8 @@ plot3 <- function(data.filepath = "./household_power_consumption.txt",
       
       # set global parameters
       #  font point size
-      par(ps = 12)
+      currentPar <- par(ps = 12)
+      
       # create base plot with sub metering 1
       with(this.data.filtered,
            plot(DateTime, Sub_metering_1, type = "s",
@@ -45,6 +51,45 @@ plot3 <- function(data.filepath = "./household_power_consumption.txt",
              lty = "solid",
              col = c("black", "red", "blue"),
              legend = c("Sub_metering_1", "Sub_metering_2", "Sub_metering_3"))
+      
+      # reset global parameters
+      par(currentPar)
+   }
+   
+   # BEGIN - Common file handling
+   # check for valid input file
+   if (is.null(data.filepath) || data.filepath == "")
+      stop("data.filepath is required")
+   
+   # get file extension for download file, i.e. ".zip" for default
+   #  adapted from http://stackoverflow.com/questions/15073753/regex-return-file-name-remove-path-and-file-extension
+   data.filepath.ext <- sub("(.*\\/)([^.]+)(\\.[[:alnum:]]+$)", "\\3",
+                            data.filepath)
+   
+   # download the file if necessary - check whether the file path starts with
+   # 'http://', 'https://', 'ftp://'
+   if (grepl("^(http://|https://|ftp://)", data.filepath)) {
+      # construct download target filename
+      data.downloaded <- paste("./household_power_consumption",
+                               data.filepath.ext, sep = "")
+      
+      # a URL was provided, so download the file (use quiet option to match
+      # output detail to our own verbose flag)
+      if (verbose)
+         cat(" Downloading filename [", data.filepath, "]\n", sep = "")
+      download.file(data.filepath, data.downloaded, "curl",
+                    quiet = !verbose)
+      data.filepath <- data.downloaded
+   }
+   
+   # unzip the file if the extension is ".zip"
+   if (data.filepath.ext == ".zip") {
+      if (verbose)
+         cat(" Unzipping filename [", data.filepath, "]\n", sep = "")
+      data.filepaths <- unzip(data.filepath, junkpaths = TRUE)
+      data.filepath <- data.filepaths[1]
+      if (verbose)
+         cat(" Extracted filename [", data.filepath, "] for loading\n", sep = "")
    }
    
    #  define classes for data being read
@@ -91,16 +136,21 @@ plot3 <- function(data.filepath = "./household_power_consumption.txt",
 
    # subset to the 2 days we are interested in; this would be better done while
    # loading, but that wasn't easy to figure out
-   this.data.filtered <- this.data[this.data$DateTime >= "2007-02-01" &
-                                   this.data$DateTime < "2007-02-03", ]
    if (verbose)
-      cat(" Filtered to ", nrow(this.data.filtered), " rows\n", sep = "")
-
+      cat(" Filtering to desired rows", sep = "")
+   this.data.filtered <- this.data[this.data$DateTime >= "2007-02-01" &
+                                      this.data$DateTime < "2007-02-03", ]
+   if (verbose)
+      cat(", ", nrow(this.data.filtered), " frames remaining\n", sep = "")
+   # END - Common file handling
+   
    # plot
    #  to screen
    gen.plot(this.data.filtered, verbose = verbose)
    #  to file
    if (!is.null(plot.filepath) && plot.filepath != "") {
+      if (verbose)
+         cat(" Generating PNG file [", plot.filepath, "]\n", sep = "")
       # open PNG plot device (default dimensions 480x480)
       png(file = plot.filepath)
       # write plot
